@@ -63,14 +63,14 @@ def reservation():
     reservation_date = (datetime.today() + timedelta(7)).strftime('%Y-%m-%d')
     reservation_begin_hour = "08:00:00"
     reservation_end_hour = "09:00:00"
-    reservation_date = "2021-01-15"
 
     data["beginDate"] = reservation_date
     data["endDate"] = reservation_date
     data["beginPeriod"] = reservation_begin_hour
     data["endPeriod"] = reservation_end_hour
 
-    logging.info("From {} {} to {} {}.".format(reservation_begin_hour,reservation_date,reservation_end_hour,reservation_date))
+    table_num = int(data["resourceId"]) - 909
+    logging.info("From {} {} to {} {} @{}.".format(reservation_begin_hour,reservation_date,reservation_end_hour,reservation_date, table_num))
 
     with requests.Session() as s:
         logging.info("Session started.")
@@ -85,23 +85,26 @@ def reservation():
 
         r = s.post(RESERVATION_URL, data=data)
         soup = BeautifulSoup(r.text, features="html.parser")
-        reservation_message = soup.select_one('div[id="created-message"]').getText()
-        reference_message = soup.select_one('div[id="reference-number"]').getText()
-        reference_number = reference_message.split()[-1]
-        logging.info(reservation_message)
-        logging.info(reference_message)
-        refs["2021-01-15"] = reference_number
-        print(refs)
+        try:
+            reservation_message = soup.select_one('div[id="created-message"]').getText()
+            reference_message = soup.select_one('div[id="reference-number"]').getText()
+            reference_number = reference_message.split()[-1]
+            logging.info(reservation_message)
+            logging.info(reference_message)
+            refs[reservation_date] = [reference_number, data["resourceId"]]
+        except:
+            logging.info("Reservation failed.")
+        
 
 
-def update(reference_number):
+def update(reference_number, resource_id):
     logging.info("Updating {}".format(reference_number))
     update_data = {
         "userId" : "312",
         "scheduleId" : "21",
         "reservationAction" : "update",
         "seriesUpdateScope" : "full",
-        "resourceId" : "1243"
+        "resourceId" : resource_id
     }
     update_data["beginDate"] = (datetime.today() + timedelta(7)).strftime('%Y-%m-%d')
     update_data["endDate"] = (datetime.today() + timedelta(7)).strftime('%Y-%m-%d')
@@ -121,9 +124,12 @@ def update(reference_number):
         s.headers.update(headers_dict)
 
         r = s.post(UPDATE_URL, data=update_data)
-        soup = BeautifulSoup(r.text, features="html.parser")
-        update_message = soup.select_one('div[id="created-message"]').getText()
-        logging.info(update_message)
+        try:
+            soup = BeautifulSoup(r.text, features="html.parser")
+            update_message = soup.select_one('div[id="created-message"]').getText()
+            logging.info(update_message)
+        except:
+            logging.info("Update failed.")
 
 
 def schedule_jobs():
@@ -137,5 +143,8 @@ def schedule_jobs():
 
 
 if __name__ == "__main__":
-    #update("5ffc0fc7bd6eb539146268")
-    reservation()
+    reservation_date = (datetime.today() + timedelta(7)).strftime('%Y-%m-%d')
+
+    schedule.every().day.at("08:00").do(reservation)
+    schedule.every().day.at("09:00").do(update, refs[reservation_date][0], refs[reservation_date][1])
+    
