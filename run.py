@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import json
+import logging
 import os
 import requests
 import sys
@@ -9,11 +10,19 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import schedule
 
+# Configs
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 load_dotenv(verbose=True)
 
+# Constants
 EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("PASSWORD")
+LOGIN_URL = "https://hbzwwws005.uzh.ch/booked-ubzh-extern/Web/index.php"
+RESERVATION_URL = "https://hbzwwws005.uzh.ch/booked-ubzh-extern/Web/ajax/reservation_save.php"
+UPDATE_URL = "https://hbzwwws005.uzh.ch/booked-ubzh-extern/Web/ajax/reservation_update.php"
+RIDs = list(range(1239,1252+1))
 
+# Variables
 payload = {
 	"email": EMAIL,
 	"password": PASSWORD,
@@ -30,7 +39,7 @@ data = {
     "endDate" : "2021-01-15",
     "endPeriod" : "09:00:00",
     "scheduleId" : "21",
-    "resourceId" : "1252",
+    "resourceId" : "1243",
     "reservationDescription" : "Revision",
     "TOS_ACKNOWLEDGEMENT" : "on",
     "reservationAction" : "create",
@@ -47,39 +56,86 @@ headers_dict = {
     "Referer": "https://hbzwwws005.uzh.ch/booked-ubzh-extern/Web/reservation.php",
 }
 
-LOGIN_URL = "https://hbzwwws005.uzh.ch/booked-ubzh-extern/Web/index.php"
-RESERVATION_URL = "https://hbzwwws005.uzh.ch/booked-ubzh-extern/Web/ajax/reservation_save.php"
-
-RIDs = list(range(1239,1252+1))
+refs = dict() # day:reference_number
 
 def reservation():
+    logging.info("Started reservation.")
     reservation_date = (datetime.today() + timedelta(7)).strftime('%Y-%m-%d')
-    reservation_begin_hour = datetime.now().replace(minute=0, second=0).strftime("%H:%M:%S")
-    reservation_end_hour = (datetime.now().replace(minute=0, second=0) + timedelta(hours=1)).strftime("%H:%M:%S")
+    reservation_begin_hour = "08:00:00"
+    reservation_end_hour = "09:00:00"
+    reservation_date = "2021-01-15"
 
     data["beginDate"] = reservation_date
     data["endDate"] = reservation_date
     data["beginPeriod"] = reservation_begin_hour
     data["endPeriod"] = reservation_end_hour
 
+    logging.info("From {} {} to {} {}.".format(reservation_begin_hour,reservation_date,reservation_end_hour,reservation_date))
+
     with requests.Session() as s:
-
+        logging.info("Session started.")
         p = s.post(LOGIN_URL, data=payload)
-
+        logging.info("Logged in as {}.".format(payload["email"]))
         soup = BeautifulSoup(p.text, features="html.parser")
         csrf_token = soup.select_one('input[id="csrf_token"]')['value']
         data["CSRF_TOKEN"] = csrf_token
+        logging.info("CSRF_TOKEN: {}".format(csrf_token))
 
         s.headers.update(headers_dict)
 
         r = s.post(RESERVATION_URL, data=data)
-        print(r)
+        soup = BeautifulSoup(r.text, features="html.parser")
+        reservation_message = soup.select_one('div[id="created-message"]').getText()
+        reference_message = soup.select_one('div[id="reference-number"]').getText()
+        reference_number = reference_message.split()[-1]
+        logging.info(reservation_message)
+        logging.info(reference_message)
+        refs["2021-01-15"] = reference_number
+        print(refs)
 
-schedule.every().day.at("08:00").do(reservation)
-schedule.every().day.at("09:00").do(reservation)
-schedule.every().day.at("10:00").do(reservation)
-schedule.every().day.at("01:56:40").do(reservation)
 
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+def update(reference_number):
+    logging.info("Updating {}".format(reference_number))
+    update_data = {
+        "userId" : "312",
+        "scheduleId" : "21",
+        "reservationAction" : "update",
+        "seriesUpdateScope" : "full",
+        "resourceId" : "1243"
+    }
+    update_data["beginDate"] = (datetime.today() + timedelta(7)).strftime('%Y-%m-%d')
+    update_data["endDate"] = (datetime.today() + timedelta(7)).strftime('%Y-%m-%d')
+    update_data["beginPeriod"] = "08:00:00"
+    update_data["endPeriod"] = datetime.now().replace(minute=0, second=0).strftime("%H:%M:%S")
+    update_data["referenceNumber"] = reference_number
+
+    with requests.Session() as s:
+        logging.info("Session started.")
+        p = s.post(LOGIN_URL, data=payload)
+        logging.info("Logged in as {}.".format(payload["email"]))
+        soup = BeautifulSoup(p.text, features="html.parser")
+        csrf_token = soup.select_one('input[id="csrf_token"]')['value']
+        update_data["CSRF_TOKEN"] = csrf_token
+        logging.info("CSRF_TOKEN: {}".format(csrf_token))
+
+        s.headers.update(headers_dict)
+
+        r = s.post(UPDATE_URL, data=update_data)
+        soup = BeautifulSoup(r.text, features="html.parser")
+        update_message = soup.select_one('div[id="created-message"]').getText()
+        logging.info(update_message)
+
+
+def schedule_jobs():
+    schedule.every().day.at("08:00").do(reservation)
+    schedule.every().day.at("09:00").do(reservation)
+    schedule.every().day.at("10:00").do(reservation)
+
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    #update("5ffc0fc7bd6eb539146268")
+    reservation()
