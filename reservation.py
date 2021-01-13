@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import json
 import logging
 import os
+import pickle
 import requests
 import sys
 import time
@@ -34,9 +35,7 @@ payload = {
 
 data = {
     "userId" : "312",
-    "beginDate" : "2021-01-15",
     "beginPeriod" : "08:00:00",
-    "endDate" : "2021-01-15",
     "endPeriod" : "09:00:00",
     "scheduleId" : "21",
     "resourceId" : "1243",
@@ -55,8 +54,6 @@ headers_dict = {
     "Connection": "keep-alive",
     "Referer": "https://hbzwwws005.uzh.ch/booked-ubzh-extern/Web/reservation.php",
 }
-
-refs = dict() # day:reference_number
 
 def reservation():
     logging.info("Started reservation.")
@@ -91,60 +88,18 @@ def reservation():
             reference_number = reference_message.split()[-1]
             logging.info(reservation_message)
             logging.info(reference_message)
+            with open('refs.pkl', 'rb') as f:
+                refs = pickle.load(f)
             refs[reservation_date] = [reference_number, data["resourceId"]]
+            with open('refs.pkl', 'wb') as f:
+                pickle.dump(refs, f)
         except:
             logging.info("Reservation failed.")
-        
-
-
-def update(reference_number, resource_id):
-    logging.info("Updating {}".format(reference_number))
-    update_data = {
-        "userId" : "312",
-        "scheduleId" : "21",
-        "reservationAction" : "update",
-        "seriesUpdateScope" : "full",
-        "resourceId" : resource_id
-    }
-    update_data["beginDate"] = (datetime.today() + timedelta(7)).strftime('%Y-%m-%d')
-    update_data["endDate"] = (datetime.today() + timedelta(7)).strftime('%Y-%m-%d')
-    update_data["beginPeriod"] = "08:00:00"
-    update_data["endPeriod"] = datetime.now().replace(minute=0, second=0).strftime("%H:%M:%S")
-    update_data["referenceNumber"] = reference_number
-
-    with requests.Session() as s:
-        logging.info("Session started.")
-        p = s.post(LOGIN_URL, data=payload)
-        logging.info("Logged in as {}.".format(payload["email"]))
-        soup = BeautifulSoup(p.text, features="html.parser")
-        csrf_token = soup.select_one('input[id="csrf_token"]')['value']
-        update_data["CSRF_TOKEN"] = csrf_token
-        logging.info("CSRF_TOKEN: {}".format(csrf_token))
-
-        s.headers.update(headers_dict)
-
-        r = s.post(UPDATE_URL, data=update_data)
-        try:
-            soup = BeautifulSoup(r.text, features="html.parser")
-            update_message = soup.select_one('div[id="created-message"]').getText()
-            logging.info(update_message)
-        except:
-            logging.info("Update failed.")
-
-
-def schedule_jobs():
-    schedule.every().day.at("08:00").do(reservation)
-    schedule.every().day.at("09:00").do(reservation)
-    schedule.every().day.at("10:00").do(reservation)
-
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
 
 
 if __name__ == "__main__":
-    reservation_date = (datetime.today() + timedelta(7)).strftime('%Y-%m-%d')
-
-    schedule.every().day.at("08:00").do(reservation)
-    schedule.every().day.at("09:00").do(update, refs[reservation_date][0], refs[reservation_date][1])
-    
+    logging.info("Script running ...")
+    schedule.every().day.at("08:00:00").do(reservation)
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
