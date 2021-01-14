@@ -67,6 +67,12 @@ def reservation():
     data["endPeriod"] = reservation_end_hour
 
     table_num = int(data["resourceId"]) - 909
+
+    if datetime.today().strftime("%A") in ['Saturday', 'Sunday']:
+        data["scheduleId"] = "20"
+        data["resourceId"] = "1233"
+        table_num = int(data["resourceId"]) - 723
+
     logging.info("From {} {} to {} {} @{}.".format(reservation_begin_hour,reservation_date,reservation_end_hour,reservation_date, table_num))
 
     with requests.Session() as s:
@@ -99,7 +105,7 @@ def reservation():
 
 if __name__ == "__main__":
     logging.info("Script running ...")
-    schedule.every().day.at("08:00:00").do(reservation)
+    schedule.every().day.at("09:00:00").do(reservation)
     while True:
         schedule.run_pending()
         time.sleep(1)
