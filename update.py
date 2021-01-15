@@ -82,7 +82,7 @@ def update():
 
 if __name__ == "__main__":
     logging.info("Script running ...")
-    for hour in list(f'{h:02}'+':00:00' for h in range(9,17+1)):
+    for hour in list(f'{h:02}'+':00:00' for h in range(10,18+1)):
         schedule.every().day.at(hour).do(update)
 
     while True:
