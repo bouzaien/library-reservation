@@ -88,6 +88,7 @@ def checkin():
             logging.info("Checkin failed.")
 
 if __name__ == "__main__":
+    logging.info("Script running ...")
     schedule.every().day.at("08:00:00").do(checkin)
 
     while True:
