@@ -17,7 +17,7 @@ load_dotenv(verbose=True)
 EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("PASSWORD")
 LOGIN_URL = "https://hbzwwws005.uzh.ch/booked-ubzh-extern/Web/index.php"
-CHECKIN_URL "https://hbzwwws005.uzh.ch/booked-ubzh-extern/Web/ajax/reservation_checkin.php?action=checkin"
+CHECKIN_URL = "https://hbzwwws005.uzh.ch/booked-ubzh-extern/Web/ajax/reservation_checkin.php?action=checkin"
 
 # Variables
 payload = {
