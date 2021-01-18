@@ -74,6 +74,7 @@ def reservation():
         table_num = int(data["resourceId"]) - 723
 
     logging.info("From {} {} to {} {} @{}.".format(reservation_begin_hour,reservation_date,reservation_end_hour,reservation_date, table_num))
+    logging.info("resourceId: {}, scheduleId: {}.".format(data["resourceId"], data["scheduleId"]))
 
     with requests.Session() as s:
         logging.info("Session started.")
